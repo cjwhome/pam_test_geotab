@@ -84,6 +84,28 @@ void setup()
     Serial.println("Finished.");*/
 }
 
+// calculate checksum for geotab data
+void checksum(char message[])
+{
+    int b0 = 0;
+    int b1 = 0;
+
+    for (int i = 0; i < sizeof(message); i++) {
+        b0 += message[i] - '0';  // convert message[i] to literal int value
+        b1 = b0;
+    }
+
+    return {b0%256, b1%256};
+}
+
+// create the full message including headers to send to geotab device
+void createMessage(char message[])
+{
+    message = '0x02' + message;
+    check = checksum(message);
+    message = message + check + '0x03';
+}
+
 
 void loop()
 {
