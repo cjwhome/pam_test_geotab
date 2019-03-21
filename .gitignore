@@ -1,1 +1,3 @@
 .vscode/
+target/
+pam-test-charging.cpp
