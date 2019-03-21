@@ -18,10 +18,18 @@ PMIC pmic;
 int currentValues[] = { 100, 150, 500, 900, 1200, 1500, 2000, 3000 };
 SYSTEM_MODE(MANUAL);
 
+byte b0 = 0;  // values for geotab check sum
+byte b1 = 0;
+int deviceID = 4108;  // this ID must be given from the Geotab team
+
 void writeRegister(uint8_t reg, uint8_t value);
 void setupPMIC(void);
 void serialMenu(void);
 void goToSleep(void);
+void checksum(char message[]);
+void createMessage(char message[]);
+void sendData(char message[]);
+int geotabSync();
 
 void setup()
 {
@@ -85,37 +93,70 @@ void setup()
 }
 
 // calculate checksum for geotab data
+// b0 must precede b1 in the message
 void checksum(char message[])
 {
-    int b0 = 0;
-    int b1 = 0;
-
     for (int i = 0; i < sizeof(message); i++) {
-        b0 += message[i] - '0';  // convert message[i] to literal int value
-        b1 = b0;
+        b0 = b0 + message[i];
+        b1 = b1 + b0;
     }
-
-    return {b0%256, b1%256};
 }
 
 // create the full message including headers to send to geotab device
 void createMessage(char message[])
 {
-    message = '0x02' + message;
-    check = checksum(message);
-    message = message + check + '0x03';
+    message = 0x02 + message;
+    checksum(message);
+    message = message + b0 + b1 + 0x03;
 }
 
+// send data and receive responses from geotab device
+void sendData(char message[])
+{
+    // TODO
+}
+
+// sync with the geotab device
+int geotabSync()
+{
+    Serial.print("sending sync char: '0x55'");
+    Serial.write(0x55);
+
+    if (Serial.available() >= 6) {
+        char response[6]; 
+        Serial.readBytes(response, 6);  // read 6 bytes from serial port
+        Serial.println(response);
+
+        if (sizeof(response) == 6 && response[1] == 1) {
+            Serial.print("handshake request received");
+            return 1;
+        }
+        else {
+            Serial.print("invalid response");
+            return -1;
+            // delay(1000);
+        }
+    }
+}
 
 void loop()
 {
+    // sync with the geotab device
+    if (geotabSync() == 1) {
+        // once synced send handshake response message
+        char handshakeResponse[] = {0x81, 4, deviceID%256, (deviceID >> 8)%256, 0, 0};
+        createMessage(handshakeResponse);
+        Serial.print("sending handshake response message...");
+        Serial.write(handshakeResponse);
+
+    }
+
     if (Serial.available() > 0) {
         // read the incoming byte:
         incomingByte = Serial.read();
 
             Serial.print("incomming byte:");
             Serial.println(incomingByte);
-
 
         Serial.println(incomingByte);
         if(incomingByte == 'm'){
